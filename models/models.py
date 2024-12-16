@@ -14,9 +14,9 @@ class Author(Base):
     __tablename__ = 'authors'
 
     id = Column(Integer(), primary_key = True, autoincrement = True)
-    _name = Column("name", String(), nullable = False)
+    name = Column( String(), nullable = False)
 
-    articles = relationship('Article', back_populates = 'author')
+    articles = relationship('Article', backref = 'author')
 
     def __init__(self, name):
         if not isinstance(name, str):
@@ -38,21 +38,23 @@ class Author(Base):
         raise AttributeError("Name can not be changed after initialization")
 
     def magazines(self, session):
-        return session.query(Magazine).join(Article).filter(Article.author_id == self.id).all()
+        return session.query(Magazine).join(Article).filter(Article.author_id == self.id).distinct().all()
+
+    def articles(self, session):
+        return session.query(Article).filter(Article.author_id == self.id).all()
+    
     def __repr__(self):
         return f"<Author: {self.name}>"
-
-Base.metadata.create_all(engine)
 
 
 class Magazine(Base):
     __tablename__ = 'magazines'
 
     id = Column(Integer(), primary_key = True)
-    _name = Column("name", String(), nullable = False)
-    _category = Column("category", String(), nullable = False)
+    name = Column( String(), nullable = False)
+    category = Column( String(), nullable = False)
 
-    articles = relationship('Article', back_populates ='magazine')
+    articles = relationship('Article', backref ='magazine')
 
 
     def __init__(self, name, category):
@@ -103,8 +105,18 @@ class Magazine(Base):
         self._category = value
 
     def contributors(self, session):
-        return session.query(Author).join(Article).filter(Article.magazine_id == self.id).all()
+        return session.query(Author).join(Article).filter(Article.magazine_id == self.id).distinct().all()
 
+    def articles(self, session):
+        return session.query(Author).filter(Article.magazine_id == self.id).all()
+
+    def article_titles(self, session):
+        articles = self.articles(session)
+        return [article.title for article in articles] if articles else None
+
+    def contributing_authors(self, session):
+        authors = session.query(Author).join(Article).filter(Article.magazine_id == self.id).all()
+        return [author for author in authors if len(author.articles (session)) > 2] or None
     def __repr__(self):
         return f"<Magazine: {self.name}, Category: {self.category}>"
 
@@ -113,7 +125,7 @@ class Article(Base):
     __tablename__ = 'articles'
 
     id = Column(Integer(), primary_key = True, autoincrement =True)
-    _title = Column("title", String(), nullable = False)
+    title = Column(String(), nullable = False)
     author_id = Column(Integer(), ForeignKey('authors.id', nullable = False))
     magazine_id = Column(Integer(), ForeignKey('magazines.id'), nullable = False)
 
@@ -140,6 +152,14 @@ class Article(Base):
     @property
     def title(self):
         return self._title
+    
+    @property
+    def author(self, session):
+        return session.query(Author).filter(Author.id == self.author_id).first()
+
+    @property
+    def magazine(self, session):
+        return session.query(Magazine).filter(Magazine.id == self.magazine_id).first()
 
     def __repr__(self):
         return f'<Article: {self.title}, Author: {self.author.name}, Magazine: {self.magazine.name} >'
